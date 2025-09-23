@@ -1,5 +1,7 @@
 # Notifiction Service
 
+### My main repo in [GitLab](https://gitlab.com/fmkv/fmkv-backend/-/tree/main/notificationService?ref_type=heads)
+
 Used for email notifications to the user
 
 ```bash
