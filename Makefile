@@ -5,9 +5,23 @@ build:
 	@go build -o main cmd/notification/main.go
 
 run:
+	@echo "Start container..."
+	> logs/app.log
 	@go run cmd/notification/main.go
 
+docker-build:
+	@echo "Start build service in docker..."
+	docker build -t norification-service .
+
 docker-run:
+	@echo "Start container service..."
+	docker run -p 8080:8080 --name norification-service -d norification-service
+
+docker-compose-build:
+	@echo "Start docker-compose build..."
+	docker compose --build
+
+docker-compose-run:
 	@if docker compose up --build 2>/dev/null; then \
 		: ; \
 	else \
@@ -15,7 +29,7 @@ docker-run:
 		docker-compose up --build; \
 	fi
 
-docker-down:
+docker-compose-down:
 	@if docker compose down 2>/dev/null; then \
 		: ; \
 	else \
@@ -35,6 +49,10 @@ clean:
 	@echo "Cleaning..."
 	@rm -f main
 
+clean-logs:
+	@echo "Cleaning..."
+	> ./logs/app.log
+
 watch:
 	@if command -v air > /dev/null; then \
             air; \
@@ -51,4 +69,4 @@ watch:
             fi; \
         fi
 
-.PHONY: all build run test clean watch docker-run docker-down itest
+.PHONY: all build run test clean watch docker-compose-run docker-compose-down itest clean-logs docker-build docker-run

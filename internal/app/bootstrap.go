@@ -1,17 +1,12 @@
 package app
 
 import (
-	"context"
-	"os"
-	"os/signal"
-	"syscall"
-
+	"fmt"
 	config "notification/internal/config"
 	kafka "notification/internal/kafka"
 	logger "notification/internal/logger"
 	"notification/internal/middleware"
 	api "notification/internal/routes"
-	services "notification/internal/services"
 	logType "notification/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -39,26 +34,21 @@ func Bootstrap() App {
 	api.SetupRoutes(app.Router, app.Logger, app.Config)
 
 	// kafka
-	topics := []string{"user_registered", "user_deleted"}
-	kafkaConsumer := kafka.NewNotificationConsumer(
-		app.Config.KafkaBroker,
-		"notification_group",
-		topics,
-		services.NewEmailService(app.Config),
-		kafka.NewKafkaProducer(app.Config.KafkaBroker),
-		app.Logger,
+	const (
+		topic = "my-topic"
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	kafkaConsumer.Start(ctx)
+	p, err := kafka.NewProducer([]string{app.Config.KafkaBroker})
+	if err != nil {
+		app.Logger.Fatalf("%s", "Error in creating producer", err)
+	}
 
-	go func() {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-		<-sigChan
-		app.Logger.Infof("shutdown signal stopping consumers...")
-		cancel()
-	}()
+	for i := range 10 {
+		msg := fmt.Sprintf("kafka message %d", i)
+		if err := p.Produce(msg, topic); err != nil {
+			app.Logger.Infof("Added msg '%s' in kafka for topic %s", msg, topic)
+		}
+	}
 
 	app.Logger.Infof("Server bootstrap done")
 	app.Logger.Infof("Server Port: %s", app.Config.Port)

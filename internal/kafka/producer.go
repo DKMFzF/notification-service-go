@@ -1,33 +1,67 @@
 package kafka
 
 import (
-	"context"
-	"encoding/json"
-	"notification/internal/models"
+	"errors"
+	"fmt"
+	"strings"
 
-	"github.com/segmentio/kafka-go"
+	kafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
-type KafkaProducer struct {
-	broker string
+const (
+	flushTimeout = 5000 // 5s
+)
+
+var errUnknownType = errors.New("unknown event type")
+
+type Producer struct {
+	producer *kafka.Producer
 }
 
-func NewKafkaProducer(broker string) *KafkaProducer {
-	return &KafkaProducer{broker: broker}
-}
-
-func (p *KafkaProducer) Publish(ctx context.Context, topic string, event models.EmailRequest) error {
-	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:  []string{p.broker},
-		Topic:    topic,
-		Balancer: &kafka.LeastBytes{},
-	})
-	defer writer.Close()
-
-	msg, err := json.Marshal(event)
-	if err != nil {
-		return err
+func NewProducer(addres []string) (*Producer, error) {
+	conf := &kafka.ConfigMap{
+		// list brokers...
+		"bootstrap.servers": strings.Join(addres, ","),
 	}
 
-	return writer.WriteMessages(ctx, kafka.Message{Value: msg})
+	p, err := kafka.NewProducer(conf)
+
+	if err != nil {
+		return nil, fmt.Errorf("%s", "Error with create producer: "+err.Error())
+	}
+
+	return &Producer{producer: p}, nil
+}
+
+// send message in topic
+func (p *Producer) Produce(message, topic string) error {
+	kafkaMsg := &kafka.Message{
+		TopicPartition: kafka.TopicPartition{
+			Topic:     &topic,
+			Partition: kafka.PartitionAny,
+		},
+		Value: []byte(message),
+		Key:   nil,
+	}
+
+	kafkaChan := make(chan kafka.Event)
+	if err := p.producer.Produce(kafkaMsg, kafkaChan); err != nil {
+		return nil
+	}
+
+	e := <-kafkaChan
+
+	switch ev := e.(type) {
+	case *kafka.Message:
+		return nil
+	case *kafka.Error:
+		return ev
+	default:
+		return errUnknownType
+	}
+}
+
+func (p *Producer) Close() {
+	p.producer.Flush(flushTimeout)
+	p.producer.Close()
 }
