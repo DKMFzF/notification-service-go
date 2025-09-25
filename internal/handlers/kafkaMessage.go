@@ -7,7 +7,7 @@ import (
 	kafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
-// universal handler for shipping services (email,sms etc...)
+// universal handler for shipping services
 // converter used in the services logic to process values
 
 type KafkaMessageHandler[TRequest any, TService servicesType.Notifier[TRequest]] struct {
@@ -32,9 +32,9 @@ func (h KafkaMessageHandler[TRequest, TService]) HandleMessage(msg *kafka.Messag
 	}
 
 	if err := h.Service.Send(req); err != nil {
-		h.Logger.Errorf("Error sending msgы: %v", err)
+		h.Logger.Errorf("Error sending msg: %v", err)
 		return
 	}
 
-	h.Logger.Infof("Message sent DONE")
+	h.Logger.Infof("Message send DONE")
 }

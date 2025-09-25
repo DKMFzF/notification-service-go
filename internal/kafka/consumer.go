@@ -1,11 +1,12 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
+	"notification/internal/config"
 	pkgLogger "notification/pkg/logger"
-	"strings"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	kafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 // func type for handlers
@@ -16,13 +17,7 @@ type Consumer struct {
 }
 
 func NewConsumer(addrs []string, groupId string) (*Consumer, error) {
-	c, err := kafka.NewConsumer(
-		&kafka.ConfigMap{
-			"bootstrap.servers": strings.Join(addrs, ","),
-			"group.id":          groupId,
-			"auto.offset.reset": "earliest",
-		},
-	)
+	c, err := config.ProducerConfig(addrs, groupId)
 
 	if err != nil {
 		return nil, fmt.Errorf("%s", "Error creating consumer: "+err.Error())
@@ -31,38 +26,54 @@ func NewConsumer(addrs []string, groupId string) (*Consumer, error) {
 	return &Consumer{Consumer: c}, nil
 }
 
+// subscribe on kafka topic
 func (c *Consumer) Subscribe(topics []string) error {
 	return c.Consumer.SubscribeTopics(topics, nil)
 }
 
-func (c *Consumer) Listen(handler map[string]MessageHandler, log pkgLogger.Logger) {
+// listener kafka events
+func (c *Consumer) Listen(ctx context.Context, handlers map[string]map[string]MessageHandler, log pkgLogger.Logger, timeListenUpdate int) {
 	go func() {
 		for {
-			ev := c.Consumer.Poll(2000)
-			if ev == nil {
-				log.Infof("Not Events")
+			select {
+			case <-ctx.Done():
 				continue
-			}
-
-			switch e := ev.(type) {
-			case *kafka.Message:
-				m := e
-
-				// result trasports ev
-				if m.TopicPartition.Error != nil {
-					log.Errorf("Delivery failed: %v\n", m.TopicPartition.Error)
+			default:
+				ev := c.Consumer.Poll(timeListenUpdate)
+				if ev == nil {
+					log.Debugf("Not Events")
 					continue
 				}
 
-				if handler, ok := handler[*e.TopicPartition.Topic]; ok {
-					handler(m)
-				} else {
-					log.Infof("Not found handler for this topic: " + *e.TopicPartition.Topic)
+				switch e := ev.(type) {
+				case *kafka.Message:
+					m := e
+
+					// result trasports ev
+					if m.TopicPartition.Error != nil {
+						log.Errorf("Delivery failed: %v\n", m.TopicPartition.Error)
+						continue
+					}
+
+					topic := m.TopicPartition.Topic
+					key := string(m.Key)
+
+					// checks topics and event in cnf services
+					if topicMap, ok := handlers[*topic]; ok {
+						if handler, ok := topicMap[key]; ok {
+							handler(m)
+						} else {
+							log.Infof("No found event %s in topic %s", key, topic)
+						}
+					} else {
+						log.Infof("No found handler for this topic: " + *topic)
+					}
+
+				case *kafka.Error:
+					log.Errorf("%s", "Error: "+e.Error())
+				default:
+					log.Warnf("%s", "Ignored its event: "+ev.String())
 				}
-			case *kafka.Error:
-				log.Errorf("%s", "Error: "+e.Error())
-			default:
-				log.Infof("%s", "Ignored its event: "+ev.String())
 			}
 		}
 	}()

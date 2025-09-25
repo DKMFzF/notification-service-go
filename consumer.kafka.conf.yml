@@ -1,0 +1,8 @@
+topics:
+  user:
+    user_register:
+      service: email
+      converter: email
+    user_editing_name:
+      service: email
+      converter: email

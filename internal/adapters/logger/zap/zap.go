@@ -8,6 +8,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// target logger app
+
 type zapLogger struct {
 	sl *zap.SugaredLogger
 }

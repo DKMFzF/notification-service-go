@@ -26,9 +26,11 @@ COPY --from=builder /app/main .
 # RUN chmod +x ./bin/wait-for-it.sh
 
 COPY .env .
+COPY consumer.kafka.conf.yml .
+
 RUN mkdir logs/
 
 EXPOSE 8080
 
-CMD ["./main"]
 # CMD ["./bin/wait-for-it.sh", "localhost", "9092", "./main"]
+CMD ["./main"]

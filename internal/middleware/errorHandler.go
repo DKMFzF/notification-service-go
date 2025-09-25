@@ -11,7 +11,6 @@ type APIError struct {
 	Message string `json:"message"`
 }
 
-// central error handler
 func ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
